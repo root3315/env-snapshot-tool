@@ -16,6 +16,34 @@ from pathlib import Path
 DEFAULT_SNAPSHOT_DIR = Path.home() / ".env-snapshots"
 
 
+def validate_snapshot_name(name):
+    """Validate snapshot name for safety and correctness."""
+    if not name:
+        raise ValueError("Snapshot name cannot be empty")
+
+    if not isinstance(name, str):
+        raise ValueError("Snapshot name must be a string")
+
+    if len(name) > 255:
+        raise ValueError("Snapshot name must be 255 characters or less")
+
+    if os.sep in name or (os.altsep and os.altsep in name):
+        raise ValueError("Snapshot name cannot contain path separators")
+
+    invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0']
+    for char in invalid_chars:
+        if char in name:
+            raise ValueError(f"Snapshot name cannot contain '{char}'")
+
+    if name.startswith('-'):
+        raise ValueError("Snapshot name cannot start with a hyphen")
+
+    if name in ('.', '..'):
+        raise ValueError("Snapshot name cannot be '.' or '..'")
+
+    return True
+
+
 def get_snapshot_dir(snapshot_dir=None):
     """Get the snapshot directory, creating it if needed."""
     if snapshot_dir is None:
@@ -28,6 +56,7 @@ def get_snapshot_dir(snapshot_dir=None):
 
 def capture_snapshot(name, snapshot_dir=None, include_patterns=None, exclude_patterns=None):
     """Capture current environment variables to a snapshot file."""
+    validate_snapshot_name(name)
     snapshot_path = get_snapshot_dir(snapshot_dir)
     
     env_vars = dict(os.environ)
@@ -65,6 +94,7 @@ def capture_snapshot(name, snapshot_dir=None, include_patterns=None, exclude_pat
 
 def restore_snapshot(name, snapshot_dir=None, overwrite=False):
     """Restore environment variables from a snapshot file."""
+    validate_snapshot_name(name)
     snapshot_path = get_snapshot_dir(snapshot_dir)
     filepath = snapshot_path / f"{name}.json"
     
@@ -95,6 +125,8 @@ def restore_snapshot(name, snapshot_dir=None, overwrite=False):
 
 def list_snapshots(snapshot_dir=None):
     """List all available snapshots."""
+    if snapshot_dir is not None:
+        validate_snapshot_name(snapshot_dir)
     snapshot_path = get_snapshot_dir(snapshot_dir)
     
     snapshots = list(snapshot_path.glob("*.json"))
@@ -133,6 +165,8 @@ def list_snapshots(snapshot_dir=None):
 
 def show_diff(name1, name2, snapshot_dir=None):
     """Show differences between two snapshots."""
+    validate_snapshot_name(name1)
+    validate_snapshot_name(name2)
     snapshot_path = get_snapshot_dir(snapshot_dir)
     
     files = []
@@ -191,6 +225,7 @@ def show_diff(name1, name2, snapshot_dir=None):
 
 def delete_snapshot(name, snapshot_dir=None):
     """Delete a snapshot file."""
+    validate_snapshot_name(name)
     snapshot_path = get_snapshot_dir(snapshot_dir)
     filepath = snapshot_path / f"{name}.json"
     
@@ -205,6 +240,7 @@ def delete_snapshot(name, snapshot_dir=None):
 
 def export_snapshot(name, output_file, snapshot_dir=None):
     """Export snapshot variables to a shell sourceable file."""
+    validate_snapshot_name(name)
     snapshot_path = get_snapshot_dir(snapshot_dir)
     filepath = snapshot_path / f"{name}.json"
     
@@ -290,24 +326,28 @@ Examples:
     if args.command is None:
         parser.print_help()
         sys.exit(0)
-    
-    if args.command == "capture":
-        capture_snapshot(
-            args.name,
-            args.snapshot_dir,
-            args.include,
-            args.exclude
-        )
-    elif args.command == "restore":
-        restore_snapshot(args.name, args.snapshot_dir, args.overwrite)
-    elif args.command == "list":
-        list_snapshots(args.snapshot_dir)
-    elif args.command == "diff":
-        show_diff(args.snapshot1, args.snapshot2, args.snapshot_dir)
-    elif args.command == "delete":
-        delete_snapshot(args.name, args.snapshot_dir)
-    elif args.command == "export":
-        export_snapshot(args.name, args.output, args.snapshot_dir)
+
+    try:
+        if args.command == "capture":
+            capture_snapshot(
+                args.name,
+                args.snapshot_dir,
+                args.include,
+                args.exclude
+            )
+        elif args.command == "restore":
+            restore_snapshot(args.name, args.snapshot_dir, args.overwrite)
+        elif args.command == "list":
+            list_snapshots(args.snapshot_dir)
+        elif args.command == "diff":
+            show_diff(args.snapshot1, args.snapshot2, args.snapshot_dir)
+        elif args.command == "delete":
+            delete_snapshot(args.name, args.snapshot_dir)
+        elif args.command == "export":
+            export_snapshot(args.name, args.output, args.snapshot_dir)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
